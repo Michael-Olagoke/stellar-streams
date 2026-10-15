@@ -76,6 +76,35 @@ Optimize compiled contracts to minimize byte size and gas footprint:
 pnpm optimize
 ```
 
+This command runs `stellar contract optimize` on each compiled contract and displays a size report showing before/after byte counts and optimization percentage for each contract.
+
+#### Contract WASM Size Budget
+
+Each contract has an enforced size budget to prevent accidental bloat. The current budgets are:
+
+| Contract | Budget    | Typical Size | Headroom |
+| :------- | :-------- | :----------- | :------- |
+| stream   | 350,000 B | ~335 KB      | ~15 KB   |
+| splits   | 200,000 B | ~185 KB      | ~15 KB   |
+| escrow   | 200,000 B | ~180 KB      | ~20 KB   |
+
+After running `pnpm optimize`, inspect the output to confirm each contract's optimized size is within budget. For example:
+
+```
+stream       before:   765432 bytes  after:   335012 bytes  reduction:  56%
+splits       before:   432109 bytes  after:   182456 bytes  reduction:  58%
+escrow       before:   410234 bytes  after:   178234 bytes  reduction:  57%
+```
+
+**What if a contract exceeds its budget?**
+
+1. Review the recent code changes that caused the size increase.
+2. Consider optimization opportunities: removing unused code, simplifying logic, or reducing contract scope if feasible.
+3. If the increase is justified and necessary, update the budget in `.github/workflows/ci.yml` (in the `contract-size-budget` job's `BUDGETS` array).
+4. In your pull request, explain the size increase and document the new budget and rationale.
+
+The CI workflow (`contract-size-budget` job) automatically validates contract sizes on pull requests. It only runs when `contracts/` files are modified, keeping unrelated PRs fast.
+
 ### Deploy Contracts
 
 Deploy the optimized contracts to Stellar Testnet and generate strongly-typed TypeScript client bindings automatically inside `packages/contracts/src/generated`:
