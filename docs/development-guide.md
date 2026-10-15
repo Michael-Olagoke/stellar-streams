@@ -76,34 +76,15 @@ Optimize compiled contracts to minimize byte size and gas footprint:
 pnpm optimize
 ```
 
-This command runs `stellar contract optimize` on each compiled contract and displays a size report showing before/after byte counts and optimization percentage for each contract.
+### Generate TypeScript Bindings (no deploy)
 
-#### Contract WASM Size Budget
+The `packages/contracts` SDK ships committed TypeScript clients for the `stream`, `splits`, and `escrow` contracts. They live in `packages/contracts/src/generated/<contract>` and are re-exported from the package index. Regenerate them from the locally built WASM at any time — this needs the [Stellar CLI](https://github.com/stellar/stellar-cli/releases) (`stellar`) on your `PATH`, but **no network access and no deployment**:
 
-Each contract has an enforced size budget to prevent accidental bloat. The current budgets are:
-
-| Contract | Budget    | Typical Size | Headroom |
-| :------- | :-------- | :----------- | :------- |
-| stream   | 350,000 B | ~335 KB      | ~15 KB   |
-| splits   | 200,000 B | ~185 KB      | ~15 KB   |
-| escrow   | 200,000 B | ~180 KB      | ~20 KB   |
-
-After running `pnpm optimize`, inspect the output to confirm each contract's optimized size is within budget. For example:
-
-```
-stream       before:   765432 bytes  after:   335012 bytes  reduction:  56%
-splits       before:   432109 bytes  after:   182456 bytes  reduction:  58%
-escrow       before:   410234 bytes  after:   178234 bytes  reduction:  57%
+```bash
+pnpm generate:bindings
 ```
 
-**What if a contract exceeds its budget?**
-
-1. Review the recent code changes that caused the size increase.
-2. Consider optimization opportunities: removing unused code, simplifying logic, or reducing contract scope if feasible.
-3. If the increase is justified and necessary, update the budget in `.github/workflows/ci.yml` (in the `contract-size-budget` job's `BUDGETS` array).
-4. In your pull request, explain the size increase and document the new budget and rationale.
-
-The CI workflow (`contract-size-budget` job) automatically validates contract sizes on pull requests. It only runs when `contracts/` files are modified, keeping unrelated PRs fast.
+This builds the contracts (`cargo build --target wasm32v1-none --release`) and runs `stellar contract bindings typescript` against each `contracts/target/wasm32v1-none/release/<contract>.wasm`. Commit the resulting changes under `packages/contracts/src/generated/`.
 
 ### Deploy Contracts
 

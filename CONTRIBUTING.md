@@ -17,8 +17,16 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 To contribute to this project, you will need:
 
 - **Node.js** >= 18.0.0
-- **pnpm** >= 8.0.0
+- **pnpm** >= 9.0.0
 - **Git**
+
+> **pnpm only.** This monorepo uses the `workspace:` protocol and is managed
+> exclusively with pnpm. npm and yarn are not supported: `.npmrc` sets
+> `engine-strict=true` and a `preinstall` guard rejects both with a clear message
+> instead of writing a conflicting `package-lock.json` or `yarn.lock`.
+>
+> Enable pnpm with [Corepack](https://pnpm.io/installation#using-corepack) if you
+> do not have it: `corepack enable`.
 
 ### Installation
 
@@ -32,9 +40,19 @@ To contribute to this project, you will need:
    pnpm install
    ```
 3. Initialize Husky hooks:
+
    ```bash
    pnpm run prepare
    ```
+
+   This installs Git hooks including:
+   - **pre-commit**: runs lint-staged (ESLint + Prettier) on staged files
+   - **commit-msg**: validates commit message format with commitlint
+   - **pre-push**: runs typecheck and tests before pushing
+
+   The pre-push hook catches type errors and test failures locally before they reach CI. If needed, you can bypass it with `git push --no-verify` for emergencies (e.g., hotfixes).
+
+   **Note on performance**: The pre-push hook typically completes in under 60 seconds. If it takes longer on your machine, you can run checks selectively using Turborepo filters (e.g., `pnpm --filter=web typecheck`).
 
 ---
 
