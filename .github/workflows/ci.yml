@@ -167,7 +167,7 @@ jobs:
         if: steps.check-contracts.outputs.changed == 'true'
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://soroban.stellar.org/install | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          $HOME/.local/bin/stellar --version
 
       - name: Build Contracts
         if: steps.check-contracts.outputs.changed == 'true'
@@ -175,11 +175,13 @@ jobs:
 
       - name: Optimize Contracts
         if: steps.check-contracts.outputs.changed == 'true'
+        env:
+          PATH: ${{ env.PATH }}:${{ env.HOME }}/.local/bin
         run: |
           for contract in stream splits escrow; do
             wasm_file="contracts/target/wasm32v1-none/release/${contract}.wasm"
             if [ -f "$wasm_file" ]; then
-              $HOME/.local/bin/stellar contract optimize --wasm "$wasm_file"
+              stellar contract optimize --wasm "$wasm_file"
             fi
           done
 
