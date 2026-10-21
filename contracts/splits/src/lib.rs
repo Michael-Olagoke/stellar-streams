@@ -1,8 +1,8 @@
 #![no_std]
-#![allow(deprecated)]
 
+use contract_version::CONTRACT_VERSION;
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env, Vec,
 };
 
 const LEDGER_BUMP_THRESHOLD: u32 = 17_280;
@@ -19,6 +19,7 @@ pub enum SplitError {
     DuplicateRecipient = 5,
     SplitNotFound = 6,
     Unauthorized = 7,
+    ShareOverflow = 8,
 }
 
 /// An immutable, reusable split configuration: a set of recipients with
@@ -38,6 +39,27 @@ pub struct Split {
 pub enum DataKey {
     Split(u64),
     NextId,
+}
+
+/// Emitted when a split configuration is created.
+#[contractevent(topics = ["splits", "created"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SplitCreated {
+    #[topic]
+    pub id: u64,
+    pub creator: Address,
+    pub total_shares: u32,
+}
+
+/// Emitted when a payment is distributed across a split's recipients.
+#[contractevent(topics = ["splits", "distrib"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SplitDistributed {
+    #[topic]
+    pub id: u64,
+    pub from: Address,
+    pub token: Address,
+    pub amount: i128,
 }
 
 #[contract]
@@ -74,7 +96,7 @@ impl SplitsContract {
                     return Err(SplitError::DuplicateRecipient);
                 }
             }
-            total_shares += share;
+            total_shares = total_shares.checked_add(share).ok_or(SplitError::ShareOverflow)?;
         }
 
         let id = next_id(&env);
@@ -85,10 +107,7 @@ impl SplitsContract {
         env.storage().persistent().extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_LIMIT);
         env.storage().instance().extend_ttl(LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_LIMIT);
 
-        env.events().publish(
-            (symbol_short!("splits"), symbol_short!("created"), id),
-            (split.creator.clone(), total_shares),
-        );
+        SplitCreated { id, creator: split.creator.clone(), total_shares }.publish(&env);
 
         Ok(id)
     }
@@ -109,11 +128,11 @@ impl SplitsContract {
 
         from.require_auth();
 
-        let split: Split = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Split(split_id))
-            .ok_or(SplitError::SplitNotFound)?;
+        let key = DataKey::Split(split_id);
+        let split: Split = env.storage().persistent().get(&key).ok_or(SplitError::SplitNotFound)?;
+
+        env.storage().persistent().extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_LIMIT);
+        env.storage().instance().extend_ttl(LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_LIMIT);
 
         let token_client = token::Client::new(&env, &token);
         token_client.transfer(&from, env.current_contract_address(), &amount);
@@ -133,10 +152,7 @@ impl SplitsContract {
             distributed += portion;
         }
 
-        env.events().publish(
-            (symbol_short!("splits"), symbol_short!("distrib"), split_id),
-            (from, token, amount),
-        );
+        SplitDistributed { id: split_id, from, token, amount }.publish(&env);
 
         Ok(())
     }
@@ -149,6 +165,12 @@ impl SplitsContract {
     /// The id that will be assigned to the next split.
     pub fn next_split_id(env: Env) -> u64 {
         env.storage().instance().get(&DataKey::NextId).unwrap_or(1)
+    }
+
+    /// The contract interface version, shared by every contract in the
+    /// workspace.
+    pub fn version(_env: Env) -> u32 {
+        CONTRACT_VERSION
     }
 }
 

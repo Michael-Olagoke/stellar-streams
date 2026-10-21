@@ -1,4 +1,12 @@
 // Export contracts configurations and utilities
+/**
+ * Interface version reported by every contract's `version()` view.
+ *
+ * Mirrors `CONTRACT_VERSION` in `contracts/version/src/lib.rs`. Bump both in
+ * the same change so the dashboard footer and the contracts never disagree.
+ */
+export const CONTRACT_VERSION = 1;
+
 export const SOROBAN_NETWORKS = {
   LOCAL: {
     networkPassphrase: 'Standalone Network ; February 2017',
