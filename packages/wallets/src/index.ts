@@ -4,6 +4,7 @@ export const WALLET_PROVIDERS = {
   ALBEDO: 'albedo',
   RABE: 'rabe',
   HANA: 'hana',
+  LEDGER: 'ledger',
 } as const;
 
 export type WalletProviderType = (typeof WALLET_PROVIDERS)[keyof typeof WALLET_PROVIDERS];
@@ -12,4 +13,10 @@ export type WalletProviderType = (typeof WALLET_PROVIDERS)[keyof typeof WALLET_P
 // Node's ESM resolver rejects extensionless relative imports.
 export * from './WalletProvider.js';
 export * from './adapters/index.js';
-export { NotSupportedError, isUserRejection, toSigningError } from './errors.js';
+export {
+  NotSupportedError,
+  WalletCancelledError,
+  WalletRejectedError,
+  isUserRejection,
+  toSigningError,
+} from './errors.js';

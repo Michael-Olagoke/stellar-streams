@@ -94,7 +94,7 @@ dashboard footer shows the version next to the network name.
 | `types`     | `Stream`, `StreamConfig`, `CreateStreamParams`, status derivation.                                                              |
 | `utils`     | BigInt stroop formatting/parsing, duration formatting, vesting math.                                                            |
 | `hooks`     | [`useStream` + `useStellarNetworkStatus`](packages/hooks/README.md) — loads a stream + claimable balance with optional polling. |
-| `wallets`   | Unified React context over Freighter, Albedo, Rabet, and Hana.                                                                  |
+| `wallets`   | Unified React context over Freighter, Albedo, Rabet, Hana, and Ledger.                                                          |
 | `ui`        | Shared UI primitives and the Tailwind class helper.                                                                             |
 | `contracts` | Generated Soroban TypeScript bindings plus network constants.                                                                   |
 
@@ -103,6 +103,13 @@ require injected `signTransaction`.
 
 Every helper exported from `packages/utils` — with examples, truncation/rounding rules, and the
 supported maximum amount — is documented in [packages/utils/README.md](packages/utils/README.md).
+
+The `hooks` package wraps those calls for React: `useStream` retries a failed refresh with bounded
+exponential backoff, keeps the last successful value on screen, and flags it through `isStale` so a
+dashboard can show a "reconnecting" hint instead of blanking the view. Writes go through
+`useCreateStream`, `useWithdrawStream`, and `useCancelStream`, which each expose
+`{ mutate, status, error, hash, reset }`, allow one transaction in flight at a time, and report the
+confirmed hash through an optional `onSuccess` callback.
 
 ---
 

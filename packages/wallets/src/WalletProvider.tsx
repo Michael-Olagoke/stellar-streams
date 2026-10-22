@@ -5,12 +5,13 @@ import {
   AlbedoAdapter,
   FreighterAdapter,
   HanaAdapter,
+  LedgerAdapter,
   RabetAdapter,
   type WalletAdapter,
 } from './adapters/index.js';
 import { isUserRejection, NotSupportedError, toSigningError } from './errors.js';
 
-export type WalletType = 'freighter' | 'albedo' | 'rabe' | 'hana';
+export type WalletType = 'freighter' | 'albedo' | 'rabe' | 'hana' | 'ledger';
 
 export interface WalletContextType {
   activeAddress: string | null;
@@ -48,6 +49,9 @@ const ADAPTERS: Record<WalletType, WalletAdapter> = {
   albedo: new AlbedoAdapter(),
   rabe: new RabetAdapter(),
   hana: new HanaAdapter(),
+  // The adapter only imports Ledger's device packages dynamically, so this does
+  // not pull a transport into the default bundle.
+  ledger: new LedgerAdapter(),
 };
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -97,12 +101,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const disconnect = useCallback(() => {
     // Invalidate any in-flight restore so it cannot resurrect this session.
     restoreId.current++;
+    const provider = activeProvider;
     setActiveAddress(null);
     setActiveProvider(null);
     setError(null);
     localStorage.removeItem(LOCAL_STORAGE_KEY_PROVIDER);
     localStorage.removeItem(LOCAL_STORAGE_KEY_ADDRESS);
-  }, []);
+
+    // Best-effort: adapters without a revoke API (and extensions that are no
+    // longer installed) must not keep the local session alive.
+    if (provider) {
+      void ADAPTERS[provider].disconnect?.().catch((err: unknown) => {
+        console.warn('Wallet disconnect failed:', err);
+      });
+    }
+  }, [activeProvider]);
 
   // Auto-reconnect from localStorage on mount. A persisted session is only
   // reported as connected once the extension confirms it, so an uninstalled
