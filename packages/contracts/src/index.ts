@@ -14,6 +14,10 @@ export const SOROBAN_NETWORKS = {
   },
 } as const;
 
+// Export network configuration utilities
+export { getNetworkConfig, isValidNetwork, getHorizonUrl } from './networks.js';
+export type { NetworkName } from './networks.js';
+
 // Generated TypeScript clients, one directory per contract under `./generated`.
 // Regenerate them from the locally built WASM (no deploy required) with:
 //   pnpm run generate:bindings

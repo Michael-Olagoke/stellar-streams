@@ -24,7 +24,8 @@
   "dependencies": {
     "@stellar-starter-kit/contracts": "workspace:*",
     "@stellar-starter-kit/sdk": "workspace:*",
-    "@stellar-starter-kit/types": "workspace:*"
+    "@stellar-starter-kit/types": "workspace:*",
+    "@stellar/stellar-sdk": "^14.5.0"
   },
   "devDependencies": {
     "@stellar-starter-kit/tsconfig": "workspace:*",
