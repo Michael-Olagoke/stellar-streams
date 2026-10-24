@@ -531,7 +531,8 @@ export type StreamErrorCode =
   | 'INVALID_START_TIME'
   | 'EMPTY_BATCH'
   | 'BATCH_TOO_LARGE'
-  | 'BATCH_OVERFLOW';
+  | 'BATCH_OVERFLOW'
+  | 'SAME_RECIPIENT';
 
 /**
  * Stable identifiers for the splits contract's `SplitError` enum. They share
@@ -579,6 +580,7 @@ const STREAM_ERROR_CODES: Record<number, StreamErrorCode> = {
   13: 'EMPTY_BATCH',
   14: 'BATCH_TOO_LARGE',
   15: 'BATCH_OVERFLOW',
+  20: 'SAME_RECIPIENT',
 };
 
 /**
@@ -846,6 +848,11 @@ abstract class SorobanClient {
       throw new Error('No contract id configured.');
     }
     return new Contract(this.options.contractId);
+  }
+
+  /** The connected wallet's address, for calls that pass it as an argument. */
+  protected get publicKey(): string | undefined {
+    return this.options.publicKey;
   }
 
   /**
@@ -1620,6 +1627,44 @@ export class StreamsClient extends SorobanClient {
   ): Promise<WriteResultFor<O>> {
     return this.invoke('cancel', [nativeToScVal(BigInt(id), { type: 'u64' })], opts);
   }
+
+  /**
+   * Hand a stream off to `newRecipient`, e.g. after a key rotation or a sale.
+   * The connected wallet signs as the contract's `caller` and must be the
+   * stream's current recipient, otherwise the call fails with `UNAUTHORIZED`.
+   *
+   * Everything not yet withdrawn — including a balance that has vested but was
+   * never claimed — becomes withdrawable by `newRecipient` only, so call
+   * `withdraw` first to keep what has already vested.
+   *
+   * @param id - Stream id as `bigint`, `number`, or decimal string.
+   * @param newRecipient - The `G...` or `C...` address that takes over the stream.
+   * @param opts - per-call write options; `opts.signal` aborts the prompt, submission and poll.
+   * @returns The hash of the confirmed transaction.
+   * @throws Error when no `publicKey` was configured, or `newRecipient` is not a valid address.
+   * @throws StreamsError when the contract rejects the call — `STREAM_NOT_FOUND`,
+   *   `UNAUTHORIZED` or `SAME_RECIPIENT`.
+   */
+  async transferRecipient<O extends WriteOptions = WriteOptions>(
+    id: bigint | number | string,
+    newRecipient: string,
+    opts: O = {} as O,
+  ): Promise<WriteResultFor<O>> {
+    const { publicKey } = this;
+    if (!publicKey) {
+      throw new Error('A connected wallet is required to submit transactions.');
+    }
+    assertAddress(newRecipient, 'newRecipient');
+    return this.invoke(
+      'transfer_recipient',
+      [
+        nativeToScVal(BigInt(id), { type: 'u64' }),
+        addressToScVal(publicKey),
+        addressToScVal(newRecipient),
+      ],
+      opts,
+    );
+  }
 }
 
 /**
@@ -1780,7 +1825,7 @@ function assertTokenId(tokenId: string): void {
   }
 }
 
-function assertAddress(address: string, field: 'sender' | 'recipient'): void {
+function assertAddress(address: string, field: 'sender' | 'recipient' | 'newRecipient'): void {
   if (!StrKey.isValidEd25519PublicKey(address) && !StrKey.isValidContract(address)) {
     throw new Error(
       `Invalid ${field}: ${address}. Expected a G... account address or C... contract address.`,

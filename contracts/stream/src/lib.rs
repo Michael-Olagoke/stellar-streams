@@ -63,6 +63,8 @@ pub enum StreamError {
     StreamCompleted = 18,
     /// Issue #181: `top_up` arithmetic would exceed the supported range.
     AmountOverflow = 19,
+    /// `transfer_recipient` was asked to hand a stream to its current recipient.
+    SameRecipient = 20,
 }
 
 /// A single linear payment stream. Tokens are locked in the contract and vest
@@ -186,6 +188,16 @@ pub struct StreamResumed {
     pub id: u64,
     pub resumed_at: u64,
     pub total_paused: u64,
+}
+
+/// Emitted when the recipient hands a stream off to a new address.
+#[contractevent(topics = ["stream", "transferred"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StreamRecipientTransferred {
+    #[topic]
+    pub id: u64,
+    pub old_recipient: Address,
+    pub new_recipient: Address,
 }
 
 #[contract]
@@ -547,6 +559,46 @@ impl StreamContract {
 
         StreamCancelled { id: stream_id, sender: stream.sender.clone(), refunded: unvested }
             .publish(&env);
+
+        Ok(())
+    }
+
+    /// Hand a stream off to `new_recipient`, e.g. after a key rotation or a sale.
+    ///
+    /// Only the current recipient may call this: `caller` must authorize and
+    /// match the stored recipient, otherwise the call fails with `Unauthorized`.
+    /// Amounts already withdrawn stay where they are; everything not yet
+    /// withdrawn — including a balance that has vested but was never claimed —
+    /// becomes withdrawable by `new_recipient` only. A recipient who wants to
+    /// keep the vested part should `withdraw` before transferring.
+    pub fn transfer_recipient(
+        env: Env,
+        stream_id: u64,
+        caller: Address,
+        new_recipient: Address,
+    ) -> Result<(), StreamError> {
+        let key = DataKey::Stream(stream_id);
+        let mut stream: Stream =
+            env.storage().persistent().get(&key).ok_or(StreamError::StreamNotFound)?;
+
+        caller.require_auth();
+        if caller != stream.recipient {
+            return Err(StreamError::Unauthorized);
+        }
+        if new_recipient == stream.recipient {
+            return Err(StreamError::SameRecipient);
+        }
+
+        let old_recipient = core::mem::replace(&mut stream.recipient, new_recipient);
+        env.storage().persistent().set(&key, &stream);
+        env.storage().persistent().extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_LIMIT);
+
+        StreamRecipientTransferred {
+            id: stream_id,
+            old_recipient,
+            new_recipient: stream.recipient.clone(),
+        }
+        .publish(&env);
 
         Ok(())
     }

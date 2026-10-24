@@ -104,6 +104,7 @@ The flagship contract locks tokens up front and releases them linearly.
 | `create_streams(sender, token, entries)`                             | Lock a whole batch atomically. Returns the new ids, in input order.       |
 | `withdraw(id)`                                                       | Recipient claims the vested, unclaimed balance.                           |
 | `cancel(id)`                                                         | Sender cancels; unvested funds are refunded, vested funds stay claimable. |
+| `transfer_recipient(id, caller, new_recipient)`                      | Recipient hands the unwithdrawn balance off to a new address.             |
 | `claimable(id)` / `vested(id)`                                       | View helpers.                                                             |
 | `get_stream(id)` / `get_config()` / `next_stream_id()`               | Read helpers.                                                             |
 
